@@ -83,6 +83,7 @@ functions:
           method: get
           cors: true  
 
+          
 #  custom values for service configuration
 custom:
   #customDomain:
