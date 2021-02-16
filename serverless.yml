@@ -10,7 +10,7 @@
 #    docs.serverless.com
 #
 # Happy Coding!
-
+app: helloworld
 service: pckhello
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
