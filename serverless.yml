@@ -23,92 +23,117 @@ frameworkVersion: '2'
 provider:
   name: aws
   runtime: nodejs12.x
-  lambdaHashingVersion: 20201221
-
-# you can overwrite defaults here
-#  stage: dev
-#  region: us-east-1
-
-# you can add statements to the Lambda function's IAM Role here
-#  iamRoleStatements:
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:ListBucket"
-#      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:PutObject"
-#      Resource:
-#        Fn::Join:
-#          - ""
-#          - - "arn:aws:s3:::"
-#            - "Ref" : "ServerlessDeploymentBucket"
-#            - "/*"
-
-# you can define service wide environment variables here
-#  environment:
-#    variable1: value1
+  profile: sl-dev
+  stage: dev # Change this as required
+  region: us-east-1
+  deploymentBucket: ${self:custom.DEPLOYMENT_BUCKET.${self:provider.stage}}
+  tracing:
+    apiGateway: true
+    lambda: true
+  vpc:
+    securityGroupIds:
+      - sg-0bde10fad07bc3bb4
+      - sg-03599f2cbd9a4759f
+    subnetIds:
+      - subnet-040f456084ec907f7
+      - subnet-021e5f19897568aaf
 
 # you can add packaging information here
-#package:
-#  include:
-#    - include-me.js
-#    - include-me-dir/**
-#  exclude:
-#    - exclude-me.js
-#    - exclude-me-dir/**
+package:
+  individually: true #Create a seperate lambda for each file/endpoint
+
+# pluggins used on
+plugins: #-serverless-plugin-warmup
+  #- serverless-stage-manager
+  #- serverless-domain-manager
+environment:
+  SLS_DEBUG: "*"
+
 
 functions:
   hello:
     handler: handler.hello
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
-#    events:
-#      - httpApi:
-#          path: /users/create
-#          method: get
-#      - websocket: $connect
-#      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
-#      - sns: greeter-topic
-#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
-#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
-#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
-#      - iot:
-#          sql: "SELECT * FROM 'some_topic'"
-#      - cloudwatchEvent:
-#          event:
-#            source:
-#              - "aws.ec2"
-#            detail-type:
-#              - "EC2 Instance State-change Notification"
-#            detail:
-#              state:
-#                - pending
-#      - cloudwatchLog: '/aws/lambda/hello'
-#      - cognitoUserPool:
-#          pool: MyUserPool
-#          trigger: PreSignUp
-#      - alb:
-#          listenerArn: arn:aws:elasticloadbalancing:us-east-1:XXXXXX:listener/app/my-load-balancer/50dc6c495c0c9188/
-#          priority: 1
-#          conditions:
-#            host: example.com
-#            path: /hello
+    role: ${self:custom.LAMBDA_VPC_ROL.${self:provider.stage}}
+    timeout: 30
+    memorySize: 2048
+    package:
+      individually: true
+      exclude:
+        - "api/**"
+        - .github/**
+        - resources/**
+        - node_modules/**
+        - README.md
+        - .gitignore
+        - package-lock.json
+      include:
+        #- api/payer-callback.js
+        #- node_modules/decode-uri-component/**
+        #- node_modules/query-string/**
+        #- node_modules/split-on-first/**
+        #- node_modules/strict-uri-encode/**
+    layers:
+      #- ${self:custom.SQLSERVER_LAYER.${self:provider.stage}}
+      - ${self:custom.XRAY-LAYER.${self:provider.stage}}
+    environment:
+      DB_PARAMETERS: ${self:custom.DB_PARAMETERS.${self:provider.stage}}     
+    events:
+     - http:
+          path: payers/hello1/
+          method: get
+          cors: true  
 
-#    Define function environment variables here
-#    environment:
-#      variable2: value2
+#  custom values for service configuration
+custom:
+  #customDomain:
+  #rest:
+  #domainName: wtx-beta.viacash.net #wtx-prod.viacash.net
+  #certificateName: "*.viacash.net"
+  #certificateArn: arn:aws:acm:us-east-1:710403208377:certificate/371a2c47-c949-4c13-b561-1312f4b78a7c
+  #securityPolicy: tls_1_2
+  #basePath: ""
+  #stage: ${self:provider.stage}
+  #hostedZoneId: Z5AF6IMJN0SDA
+  #createRoute53Record: true
+  #apiType: rest
+  stages:
+    - dev
+    - qa
+    - stg
+    - beta
+    - prod
+  
+  DB_PARAMETERS:
+    dev: DBtmpDevUE1a,DBDBtmpDevUE1aPass,DBServer,DBName,DBPort
+    qa: DBUsername,DBPasswordQA,DBServerQA,DBName,DBPort
+    stg: DBUsername,DBPasswordSTG,DBServerSTG,DBName,DBPort
+    beta: ViaDBusrTransmitir,ViaDBpwdTransmitir,viaDBProdRW,viaDBEnvio
+    prod: ViaDBusrTransmitir,ViaDBpwdTransmitir,viaDBProdRW,viaDBEnvio
+  SQLSERVER_LAYER:
+    dev: arn:aws:lambda:us-east-1:387095106392:layer:sqlserver:10
+    qa: arn:aws:lambda:us-east-1:387095106392:layer:sqlserver:10
+    stg: arn:aws:lambda:us-east-1:387095106392:layer:sqlserver:10
+    beta: arn:aws:lambda:us-east-1:793340735293:layer:lambdaToSQLServer:2
+    prod: arn:aws:lambda:us-east-1:793340735293:layer:lambdaToSQLServer:2
+  XRAY-LAYER:
+    dev: arn:aws:lambda:us-east-1:387095106392:layer:xray:1
+    qa: arn:aws:lambda:us-east-1:387095106392:layer:xray:1
+    stg: arn:aws:lambda:us-east-1:387095106392:layer:xray:1
+    beta: arn:aws:lambda:us-east-1:793340735293:layer:via-xray-layer:2
+    prod: arn:aws:lambda:us-east-1:793340735293:layer:via-xray-layer:2
+  LAMBDA_VPC_ROL:
+    dev: arn:aws:iam::387095106392:role/lambda-vpc-execution-role
+    qa: arn:aws:iam::387095106392:role/lambda-vpc-execution-role
+    stg: arn:aws:iam::387095106392:role/lambda-vpc-execution-role
+    beta: arn:aws:iam::793340735293:role/via-AWSLambdaVPCAccessExecutionRole
+    prod: aarn:aws:iam::793340735293:role/via-AWSLambdaVPCAccessExecutionRole
+  DEPLOYMENT_BUCKET:
+    dev: via-serverless-deploys
+    qa: via-serverless-deploys
+    stg: via-serverless-deploys
+    beta: via-rack-serverless-deploys-prod
+    prod: via-rack-serverless-deploys-prod  
 
-# you can add CloudFormation resource templates here
+# Create our resources with separate CloudFormation templates
 #resources:
-#  Resources:
-#    NewResource:
-#      Type: AWS::S3::Bucket
-#      Properties:
-#        BucketName: my-new-bucket
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"
+#  - ${file(resources/api-gateway-errors.yml)}
